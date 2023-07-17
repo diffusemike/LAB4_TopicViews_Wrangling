@@ -1,0 +1,1988 @@
+<html>
+<!-- Universal Demo Client
+
+Requirement
+The Client requires a local copy of the Diffusion Unminified Javascript SDK, which is included in the full deployment
+of the universal demo.  It is also available to download on diffusiondata.com.
+
+This demo has been tested on chrome and safari
+
+Function
+The client provides the ability to subscribe to six different diffusion json topic selectors, on different hosts, for different users.
+A simple use case is to view the changes in topic data from topic views, or data security rules, or changes from session trees, or simply
+to view/compare streaming data.  
+
+Parameters 
+For on-premise installations, the host can be an ip address, hostname or localhost..., the Diffusion port defaults to 8080
+For Diffusion Cloud instances, the host url is as simple as: diffusionname.us.diffusion.cloud
+The Diffusion Cloud port defaults to 443.
+
+The default of the client is to display the JSON payload for each topic, line by line.  Topic 1 is streaming and then 1 row below, topic 2 is streaming if selected...
+
+beautify - parses the JSON payload for each topic and displays in a table
+side-to-side - places the JSON payloads for each topic horizontally
+
+-->
+<link rel="icon" href="consume_icon.jpg" type="image/jpeg" sizes="16x16">
+<head>
+<title>Demo Client</title>
+<script src="browserify-zlib-0.2.0.js"></script>
+<script src="diffusion-unminified-6.8.7.js"></script>
+<!-- <script src="https://download.diffusiondata.com/clients/6.8.2/js/diffusion-unminified-6.8.2.js"></script> -->
+<script src="browserify-zlib-0.2.0.js"></script>
+</head>
+<style>
+.tooltip {
+  position: relative;
+  display: inline-block;
+  border-bottom: 1px dotted black;
+}
+
+.tooltip .tooltiptext {
+  visibility: hidden;
+  width: 500px;
+  background-color: #555;
+  color: #fff;
+  text-align: left;
+  border-radius: 6px;
+  padding: 5px 0;
+  position: absolute;
+  z-index: 1;
+  bottom: 125%;
+  left: 50%;
+  margin-left: 60px;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.tooltip .tooltiptext::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: #555 transparent transparent transparent;
+}
+
+.tooltip:hover .tooltiptext {
+  visibility: visible;
+  opacity: 1;
+}
+
+table {
+  /* table-layout: auto; */
+  color: white;
+  /* background-color: #00134d; */
+  background-color: #1A0E4B;
+  border-collapse: collapse;
+  border: 1px solid;
+  font-size: 16px;  
+  /* width: 100px; */
+}
+
+table.master {
+  /* table-layout: auto; */
+  color: white;
+  background-color: #00134d;
+  border-collapse: collapse;
+  border: 1px solid;
+  font-size: 16px;  
+  width: 100px;
+}
+
+table.prematch {
+  table-layout: auto;
+  width: 240px;  
+}
+
+td {
+  /* text-align: right; */
+  vertical-align: top;
+  border: 1px solid;
+  border-collapse: collapse;
+}
+
+td.demoheader {
+  /* text-align: right; */
+  vertical-align: top;
+  background-color: #007399;
+  /* background-color: #d8f2f8; */
+  /* background-color: #00AEEF; */
+  border: 1px solid;
+  border-collapse: collapse;
+}
+td.demotitle {
+  /* text-align: right; */
+  vertical-align: top;
+  text-align: center;
+  background-color: #0099cc;
+  /* background-color: #084EB7; */
+  border: 1px solid;
+  border-collapse: collapse;
+}
+</style>
+<body>
+<img src="demobanner.png">
+<h2>Diffusion Topic Subscriptions</h2>
+
+<form id="subscribe_form">
+
+  <input type="text" name="diff_principal" value="admin" id="diff_principal" size="10">
+  <input type="password" name="diff_password" value="password" id="diff_password" size="10">
+  <input type="text" name="topic" value="incoming/fx" id="diff_topic" size="50">
+  <input type="text" name="diff_host" value="192.168.50.164" id="diff_host" size="20">
+  <input type="text" name="diff_port" value="8080" id="diff_port" size="5">
+
+  <br><br>
+  <b> Each button starts a new session by principal and subscription displayed below</b> &nbsp&nbsp
+  <input type="checkbox" name="beautify" id="beautify" checked>beautify 
+  <input type="checkbox" name="side-to-side" id="side-to-side" checked> side-to-side
+  <input type="checkbox" name="consolelog" id="consolelog"> log
+  <input type="checkbox" name="consoleperf" id="consoleperf"> perf
+  
+  <br><br>
+  Topic 1 &nbsp <input type="button" onclick="submit_subscribe();" value="submit">
+  &nbsp Topic 2 &nbsp <input type="button" onclick="submit_subscribe2();" value="submit">
+  &nbsp Topic 3 &nbsp <input type="button" onclick="submit_subscribe3();" value="submit">
+  &nbsp Topic 4 &nbsp <input type="button" onclick="submit_subscribe4();" value="submit">
+  &nbsp Topic 5 &nbsp <input type="button" onclick="submit_subscribe5();" value="submit">
+  &nbsp Topic 6 &nbsp <input type="button" onclick="submit_subscribe6();" value="submit">
+  <br>
+
+</form>
+
+<script>
+
+function clearBox(elementID,dtopicselector,session)
+{
+	document.getElementById(elementID).innerHTML = "";
+	if (session){
+	// diffusion.clients.close(session);
+	// alert(session);
+	// function(session) {
+	var blah = function() {session.close()};
+	// Session.close();		 
+	// var sesres = diffusion.session.close;
+	//resultclose = session.closesession;
+	// alert(sesres);
+	}
+		// var sessionclosevar = session.close();
+		// diffusion.session.unsubscribe(dtopicselector);
+		// function closesession(){session.closesession};
+		// session_close(session, NULL);
+		// session.unsubscribe(dtopicselector);
+		//	session.unsubscribe(NFL_History);
+}
+
+function submit_subscribe(){
+
+// start session timer
+let millis_connection = Date.now();
+let total_time = 0;
+let millies_previous;
+
+// set style for output table
+tside_to_side.style.display = "block";
+
+// get diffusion paramters from html form
+topic_var=document.getElementById("diff_topic");
+user_var=document.getElementById("diff_principal");
+password_var=document.getElementById("diff_password");
+host_var=document.getElementById("diff_host");
+port_var=document.getElementById("diff_port");
+const diffuser = user_var.value;
+const diffpassword = password_var.value;
+const difftopic = topic_var.value;
+const diffhost = host_var.value;
+const diffport = port_var.value;
+
+// Connect to Diffusion
+let connection1 = diffusion.connect({
+    host : host_var.value,
+    port : port_var.value,
+    principal : user_var.value,
+    credentials : password_var.value
+}).then(function(session)
+{
+
+// Connect to the topic
+session_topic_me=topic_var.value;
+session.select(session_topic_me);
+
+//  begin subscribe
+session.addStream(session_topic_me,diffusion.datatypes.json()).on('value',function(topic, specification, newValue, oldValue) {
+
+// capture starting time for new event/message  
+let date_event = new Date();
+let date_event_string = date_event.toUTCString();
+let start_date_event_millis = Date.now();
+if (millies_previous){
+	start_date_event_millis = millies_previous;
+	}
+let start_millis_performance = performance.now();
+
+if (document.getElementById("consoleperf").checked) {
+console.log('Event Timestamp for topic: ' + session_topic_me);
+console.log(date_event_string);
+console.log('Current Milliseconds ' + start_date_event_millis);
+}
+
+if (document.getElementById("side-to-side").checked) {
+	var targetwindow = "push-out-side";
+	} else {
+	var targetwindow = "push-out";
+	}	
+
+if (document.getElementById("beautify").checked) {
+		
+	// other function to recursively loop through objects example
+	// function recursiveKeys(obj) {
+	//  Object.keys(obj).forEach((key) => {
+	//    if (typeof obj === "object") {
+	//      Object.keys(obj[key]).forEach((innerKey) => {
+	//        console.log(`${key}.${innerKey}`);
+	//      });
+	//    }
+	//  });
+	// }
+
+	var event = newValue.get();
+	var allPropertyNames = Object.keys(event);
+	 if (event instanceof Array) {
+		if (document.getElementById("consolelog").checked) {
+		console.log('array detected at root');
+		}
+	 };
+	var html1 = "<table><tr><td class='demotitle'><b>Topic 1</b></td><td class='demotitle'><b>" 
+		+ difftopic
+		+ "</b></td></tr><tr><td class='demoheader'>User</td><td class='demoheader'> " + diffuser
+		+ "</td></tr><tr><td class='demoheader'>Server</td><td class='demoheader'>" + diffhost
+		+ "</td></tr><tr><td class='demoheader'>Port</td><td class='demoheader'>" + diffport 
+		+ "</td></tr><tr><td class='demotitle'><b>Data</b></td><td class='demotitle'>&nbsp</td></tr>";
+	for (var j=0; j<allPropertyNames.length; j++) {
+		var obj_name = allPropertyNames[j];
+		var obj_value = event[obj_name];	
+		
+		if (obj_value instanceof Array) {
+		if (document.getElementById("consolelog").checked) {
+		console.log('level 2 array detected');
+		console.log(JSON.stringify(obj_value));
+		}
+		// alternative reducer code - needs debugging
+		// rather than the loop for obj_value below, a reducer function can be used
+		// obj_value = obj_value.reduce((acc,curr) => (acc, obj_value));
+		
+		let obj_tmp2 ={};
+		obj_value.forEach((v,i) => obj_tmp2[i] = v);
+		obj_value = obj_tmp2;
+		if (document.getElementById("consolelog").checked) {
+		console.log('level 2 nested array converted to object');
+		console.log(JSON.stringify(obj_value));
+		}
+		 };
+
+		if (typeof obj_value === 'object') { 
+		if (document.getElementById("consolelog").checked) {
+			console.log('processing level 2 object');
+			console.log(JSON.stringify(obj_value));
+			}
+			html1 += "<tr><td>" + obj_name + "</td><td></td></tr>";
+			var subkeys = Object.keys(event[obj_name]);			
+			for (let aindex = 0; aindex < subkeys.length; ++aindex) {
+				var subkey_name = subkeys[aindex];
+				var obj_value_n = Object.values(obj_value);
+
+				if (obj_value_n[aindex] instanceof Array) {
+					if (document.getElementById("consolelog").checked) {
+					console.log('level 3 array detected');
+					}
+					var obj_tmp3 = obj_value_n[aindex];					
+					let obj_tmp_from_array ={};
+					obj_tmp3.forEach((v,i) => obj_tmp_from_array[i] = v);
+					obj_value_n[aindex] = obj_tmp_from_array;
+					if (document.getElementById("consolelog").checked) {
+					console.log('level 3 nested array converted to object');
+					console.log(JSON.stringify(obj_value_n[aindex]));
+					}
+				};
+
+				if (typeof obj_value_n[aindex] === 'object') {
+				if (document.getElementById("consolelog").checked) {
+					console.log('processing level 3 object');
+					console.log(JSON.stringify(obj_value_n));
+					}
+					html1 += "<tr><td>&nbsp&nbsp&nbsp" + subkeys[aindex] + "</td><td></td></tr>";
+					var sub_allPropertyNames = Object.keys(obj_value_n[aindex]);
+					var obj_value_n2 = Object.values(obj_value_n[aindex]);
+					
+					for (let bindex = 0; bindex < sub_allPropertyNames.length; ++bindex) {
+						var subkey_name2 = sub_allPropertyNames[bindex];
+						
+						if (obj_value_n2[bindex] instanceof Array) {
+							if (document.getElementById("consolelog").checked) {
+							console.log('level 4 array detected for');
+							console.log(obj_value_n2[bindex]);
+							}
+							var obj_tmp4 = obj_value_n2[bindex];
+							let obj_tmp_from_array4 ={};
+							obj_tmp4.forEach((v,i) => obj_tmp_from_array4[i] = v);
+							obj_value_n2[bindex] = obj_tmp_from_array4;
+							if (document.getElementById("consolelog").checked) {
+							console.log('level 4 nested array converted to object');
+							console.log(JSON.stringify(obj_value_n2[bindex]));	
+							}
+							};
+						
+						 if (typeof obj_value_n2[bindex] === 'object') {
+						 if (document.getElementById("consolelog").checked) {
+							console.log('processing level 4 object');
+							console.log(JSON.stringify(obj_value_n2[bindex]));
+							}
+							html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + sub_allPropertyNames[bindex] + "</td><td></td></tr>";
+
+							var subc_allPropertyNames = Object.keys(obj_value_n2[bindex]);
+							var obj_value_n4 = Object.values(obj_value_n2[bindex]);
+						
+							for (let cindex = 0; cindex < subc_allPropertyNames.length; ++cindex) {
+								var subkey_name3 = subc_allPropertyNames[cindex];
+								 
+								if (obj_value_n4[cindex] instanceof Array) {
+									if (document.getElementById("consolelog").checked) {
+									console.log('level 5 array detected for');
+									console.log(obj_value_n4[cindex]);
+									}
+									var obj_tmp5 = obj_value_n4[cindex];
+									let obj_tmp_from_array5 ={};
+									obj_tmp5.forEach((v,i) => obj_tmp_from_array5[i] = v);
+									obj_value_n4[cindex] = obj_tmp_from_array5;
+									if (document.getElementById("consolelog").checked) {
+									console.log('level 5 nested array converted to object');
+									console.log(JSON.stringify(obj_value_n4[cindex]));
+									}
+									};
+									
+								if (typeof obj_value_n4[cindex] === 'object') {
+									if (document.getElementById("consolelog").checked) {
+									console.log('processing level 5 object');
+									console.log(JSON.stringify(obj_value_n4[cindex]));
+									}
+									var sub_allPropertyNamesc = Object.keys(obj_value_n4[cindex]);
+									var obj_value_n5 = Object.values(obj_value_n4[cindex]);
+									
+									html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subc_allPropertyNames[cindex] + "</td><td></td></tr>";
+										
+									for (let dindex = 0; dindex < sub_allPropertyNamesc.length; ++dindex) {
+										var subkey_name4 = sub_allPropertyNamesc[dindex];
+
+										if (obj_value_n5[dindex] instanceof Array) {
+											if (document.getElementById("consolelog").checked) {
+											console.log('level 6 array detected for');
+											console.log(obj_value_n5[dindex]);
+											}
+											var obj_tmp6 = obj_value_n5[dindex];
+											let obj_tmp_from_array6 ={};
+											obj_tmp6.forEach((v,i) => obj_tmp_from_array6[i] = v);
+											obj_value_n5[dindex] = obj_tmp_from_array6;
+											if (document.getElementById("consolelog").checked) {
+											console.log('level 6 nested array converted to object');
+											console.log(JSON.stringify(obj_value_n5[dindex]));	
+											}
+											};
+										
+										if (typeof obj_value_n5[dindex] === 'object') {
+											if (document.getElementById("consolelog").checked) {
+											console.log('processing level 6 object');
+											console.log(JSON.stringify(obj_value_n5[dindex]));
+											}
+											
+											var sub_allPropertyNamesd = Object.keys(obj_value_n5[dindex]);
+											var obj_value_n6 = Object.values(obj_value_n5[dindex]);											
+											html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + sub_allPropertyNamesc[dindex] + "</td><td></td></tr>";
+
+											for (let eindex = 0; eindex < sub_allPropertyNamesd.length; ++eindex) {
+												var subkey_name5 = sub_allPropertyNamesd[eindex];	
+												html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name5 + "</td><td>" + obj_value_n6[eindex]; + "</td></tr>";
+												}
+											} else {
+											html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name4 + "</td><td>" + obj_value_n5[dindex]; + "</td></tr>";
+											}
+										}
+									} else {									
+										html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name3 + "</td><td>" + obj_value_n4[cindex] + "</td></tr>";
+								 }
+								 }
+							} else {
+							html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name2 + "</td><td>" + obj_value_n2[bindex] + "</td></tr>";	
+							};
+						 };
+					 } else {
+					html1 += "<tr><td>&nbsp&nbsp&nbsp" + subkeys[aindex] + "</td><td>" + obj_value_n[aindex] + "</td></tr>";
+					};
+				};
+			} else {
+			html1 += "<tr><td>" + obj_name + "</td><td>" + obj_value + "</td></tr>";
+			}
+		html1 += "</html>";
+		document.getElementById(targetwindow).innerHTML = html1;
+		}
+	} else {
+		document.getElementById(targetwindow).innerHTML = "<hr><br><b>Topic 1: </b> " 
+		+ difftopic
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<b> User</b> " + diffuser
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<b> Server </b>" + diffhost
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<b> Port </b>" + diffport
+		// this is supposed to send on the session, but errors with session.close is not a function  
+		//		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<button onclick=\"clearBox('" + targetwindow + "','" + topic + "')\">clear</button>" + "<br><br>"
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<button onclick=\"clearBox('" + targetwindow + "','" + topic + "','"+connection1+"')\">clear</button>" + "<br><br>"
+		+ JSON.stringify(newValue.get())+"<br>";
+		};
+		
+		// time capture for logging
+		let millis_post_event = Date.now();
+		
+		let millis_post_event_string = date_event.toUTCString();
+		let millis_post_performance = performance.now();
+
+		let total_millis = Math.abs(start_date_event_millis - millis_post_event);
+		let total_millis_performance = Math.abs(start_millis_performance - millis_post_performance);
+		let total_millis_math = millis_post_event - start_date_event_millis;
+		if (document.getElementById("consoleperf").checked) {
+		console.log('performance for topic: ' + session_topic_me);
+		console.log('milliseconds post message: ' + millis_post_event + " topic: " + session_topic_me);
+		console.log('total milliseconds: ' + total_millis + " topic: " + session_topic_me);
+		console.log('total performance: ' + total_millis_performance + " topic: " + session_topic_me);
+		}		
+		total_time += total_millis_math;
+		if (document.getElementById("consoleperf").checked) {
+		console.log('accumulated ms: ' + total_time + " topic: " + session_topic_me);
+		}
+	});
+	
+});
+tside_to_side.style.display = "table-cell";
+}
+
+function submit_subscribe2(){
+
+// start session timer
+let millis_connection = Date.now();
+let total_time = 0;
+let millies_previous;
+
+// set style for output table
+tside_to_side.style.display = "block";
+
+// get diffusion paramters from html form
+topic_var=document.getElementById("diff_topic");
+user_var=document.getElementById("diff_principal");
+password_var=document.getElementById("diff_password");
+host_var=document.getElementById("diff_host");
+port_var=document.getElementById("diff_port");
+const diffuser = user_var.value;
+const diffpassword = password_var.value;
+const difftopic = topic_var.value;
+const diffhost = host_var.value;
+const diffport = port_var.value;
+
+// Connect to Diffusion
+let connection1 = diffusion.connect({
+    host : host_var.value,
+    port : port_var.value,
+    principal : user_var.value,
+    credentials : password_var.value
+}).then(function(session2)
+{
+
+// Connect to the topic
+session2_topic_me=topic_var.value;
+session2.select(session2_topic_me);
+
+//  begin subscribe
+session2.addStream(session2_topic_me,diffusion.datatypes.json()).on('value',function(topic, specification, newValue, oldValue) {
+
+// capture starting time for new event/message 
+
+let date_event = new Date();
+let date_event_string = date_event.toUTCString();
+let start_millis_performance = performance.now();
+let start_date_event_millis = Date.now();
+if (millies_previous){
+	start_date_event_millis = millies_previous;
+	}
+if (document.getElementById("consoleperf").checked) {
+console.log('Event Timestamp for topic: ' + session2_topic_me);
+console.log(date_event_string);
+console.log('Current Milliseconds ' + start_date_event_millis);
+}
+if (document.getElementById("side-to-side").checked) {
+	var targetwindow = "push-out2-side";
+	} else {
+	var targetwindow = "push-out2";
+	}	
+
+if (document.getElementById("beautify").checked) {
+		
+	// other function to recursively loop through objects example
+	// function recursiveKeys(obj) {
+	//  Object.keys(obj).forEach((key) => {
+	//    if (typeof obj === "object") {
+	//      Object.keys(obj[key]).forEach((innerKey) => {
+	//        console.log(`${key}.${innerKey}`);
+	//      });
+	//    }
+	//  });
+	// }
+
+	var event = newValue.get();
+	var allPropertyNames = Object.keys(event);
+	 if (event instanceof Array) {
+		console.log('array detected at root');
+	 };
+	var html1 = "<table><tr><td class='demotitle'><b>Topic 2</b></td><td class='demotitle'><b>" 
+		+ difftopic
+		+ "</b></td></tr><tr><td class='demoheader'>User</td><td class='demoheader'> " + diffuser
+		+ "</td></tr><tr><td class='demoheader'>Server</td><td class='demoheader'>" + diffhost
+		+ "</td></tr><tr><td class='demoheader'>Port</td><td class='demoheader'>" + diffport 
+		+ "</td></tr><tr><td class='demotitle'><b>Data</b></td><td class='demotitle'>&nbsp</td></tr>";
+	for (var j=0; j<allPropertyNames.length; j++) {
+		var obj_name = allPropertyNames[j];
+		var obj_value = event[obj_name];	
+		
+		if (obj_value instanceof Array) {
+		if (document.getElementById("consolelog").checked) {
+		console.log('level 2 array detected');
+		console.log(JSON.stringify(obj_value));
+		}
+
+		// alternative reducer code - needs debugging
+		// rather than the loop for obj_value below, a reducer function can be used
+		// obj_value = obj_value.reduce((acc,curr) => (acc, obj_value));
+		
+		let obj_tmp2 ={};
+		obj_value.forEach((v,i) => obj_tmp2[i] = v);
+		obj_value = obj_tmp2;
+		if (document.getElementById("consolelog").checked) {
+		console.log('level 2 nested array converted to object');
+		console.log(JSON.stringify(obj_value));
+		}
+		 };
+
+		if (typeof obj_value === 'object') { 
+			if (document.getElementById("consolelog").checked) {
+			console.log('processing level 2 object');
+			console.log(JSON.stringify(obj_value));
+			}
+			html1 += "<tr><td>" + obj_name + "</td><td></td></tr>";
+			var subkeys = Object.keys(event[obj_name]);			
+			for (let aindex = 0; aindex < subkeys.length; ++aindex) {
+				var subkey_name = subkeys[aindex];
+				var obj_value_n = Object.values(obj_value);
+
+				if (obj_value_n[aindex] instanceof Array) {
+					if (document.getElementById("consolelog").checked) {
+					console.log('level 3 array detected');
+					}
+					var obj_tmp3 = obj_value_n[aindex];					
+					let obj_tmp_from_array ={};
+					obj_tmp3.forEach((v,i) => obj_tmp_from_array[i] = v);
+					obj_value_n[aindex] = obj_tmp_from_array;
+					if (document.getElementById("consolelog").checked) {
+					console.log('level 3 nested array converted to object');
+					console.log(JSON.stringify(obj_value_n[aindex]));
+					}
+				};
+
+				if (typeof obj_value_n[aindex] === 'object') {
+					if (document.getElementById("consolelog").checked) {
+					console.log('processing level 3 object');
+					console.log(JSON.stringify(obj_value_n));
+					}
+					html1 += "<tr><td>&nbsp&nbsp&nbsp" + subkeys[aindex] + "</td><td></td></tr>";
+					var sub_allPropertyNames = Object.keys(obj_value_n[aindex]);
+					var obj_value_n2 = Object.values(obj_value_n[aindex]);
+					
+					for (let bindex = 0; bindex < sub_allPropertyNames.length; ++bindex) {
+						var subkey_name2 = sub_allPropertyNames[bindex];
+						
+						if (obj_value_n2[bindex] instanceof Array) {
+						if (document.getElementById("consolelog").checked) {
+							console.log('level 4 array detected for');
+							console.log(obj_value_n2[bindex]);
+							}
+							var obj_tmp4 = obj_value_n2[bindex];
+							let obj_tmp_from_array4 ={};
+							obj_tmp4.forEach((v,i) => obj_tmp_from_array4[i] = v);
+							obj_value_n2[bindex] = obj_tmp_from_array4;
+							if (document.getElementById("consolelog").checked) {
+							console.log('level 4 nested array converted to object');
+							console.log(JSON.stringify(obj_value_n2[bindex]));
+							}
+							};
+						
+						 if (typeof obj_value_n2[bindex] === 'object') {
+							if (document.getElementById("consolelog").checked) {
+							console.log('processing level 4 object');
+							console.log(JSON.stringify(obj_value_n2[bindex]));	
+							}
+							html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + sub_allPropertyNames[bindex] + "</td><td></td></tr>";
+
+							var subc_allPropertyNames = Object.keys(obj_value_n2[bindex]);
+							var obj_value_n4 = Object.values(obj_value_n2[bindex]);
+						
+							for (let cindex = 0; cindex < subc_allPropertyNames.length; ++cindex) {
+								var subkey_name3 = subc_allPropertyNames[cindex];
+								 
+								if (obj_value_n4[cindex] instanceof Array) {
+									if (document.getElementById("consolelog").checked) {
+									console.log('level 5 array detected for');
+									console.log(obj_value_n4[cindex]);
+									}
+									var obj_tmp5 = obj_value_n4[cindex];
+									let obj_tmp_from_array5 ={};
+									obj_tmp5.forEach((v,i) => obj_tmp_from_array5[i] = v);
+									obj_value_n4[cindex] = obj_tmp_from_array5;
+									if (document.getElementById("consolelog").checked) {
+									console.log('level 5 nested array converted to object');
+									console.log(JSON.stringify(obj_value_n4[cindex]));
+									}
+									};
+									
+								if (typeof obj_value_n4[cindex] === 'object') {
+									if (document.getElementById("consolelog").checked) {
+									console.log('processing level 5 object');
+									console.log(JSON.stringify(obj_value_n4[cindex]));
+									}
+									var sub_allPropertyNamesc = Object.keys(obj_value_n4[cindex]);
+									var obj_value_n5 = Object.values(obj_value_n4[cindex]);
+									
+									html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subc_allPropertyNames[cindex] + "</td><td></td></tr>";
+										
+									for (let dindex = 0; dindex < sub_allPropertyNamesc.length; ++dindex) {
+										var subkey_name4 = sub_allPropertyNamesc[dindex];
+
+										if (obj_value_n5[dindex] instanceof Array) {
+											if (document.getElementById("consolelog").checked) {
+											console.log('level 6 array detected for');
+											console.log(obj_value_n5[dindex]);
+											}
+											var obj_tmp6 = obj_value_n5[dindex];
+											let obj_tmp_from_array6 ={};
+											obj_tmp6.forEach((v,i) => obj_tmp_from_array6[i] = v);
+											obj_value_n5[dindex] = obj_tmp_from_array6;
+											if (document.getElementById("consolelog").checked) {
+											console.log('level 6 nested array converted to object');
+											console.log(JSON.stringify(obj_value_n5[dindex]));	
+											}
+											};
+										
+										if (typeof obj_value_n5[dindex] === 'object') {
+											if (document.getElementById("consolelog").checked) {
+											console.log('processing level 6 object');
+											console.log(JSON.stringify(obj_value_n5[dindex]));
+											}
+											
+											var sub_allPropertyNamesd = Object.keys(obj_value_n5[dindex]);
+											var obj_value_n6 = Object.values(obj_value_n5[dindex]);											
+											html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + sub_allPropertyNamesc[dindex] + "</td><td></td></tr>";
+
+											for (let eindex = 0; eindex < sub_allPropertyNamesd.length; ++eindex) {
+												var subkey_name5 = sub_allPropertyNamesd[eindex];	
+												html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name5 + "</td><td>" + obj_value_n6[eindex]; + "</td></tr>";
+												}
+											} else {
+											html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name4 + "</td><td>" + obj_value_n5[dindex]; + "</td></tr>";
+											}
+										}
+									} else {									
+										html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name3 + "</td><td>" + obj_value_n4[cindex] + "</td></tr>";
+								 }
+								 }
+							} else {
+							html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name2 + "</td><td>" + obj_value_n2[bindex] + "</td></tr>";	
+							};
+						 };
+					 } else {
+					html1 += "<tr><td>&nbsp&nbsp&nbsp" + subkeys[aindex] + "</td><td>" + obj_value_n[aindex] + "</td></tr>";
+					};
+				};
+			} else {
+			html1 += "<tr><td>" + obj_name + "</td><td>" + obj_value + "</td></tr>";
+			}
+		html1 += "</html>";
+		document.getElementById(targetwindow).innerHTML = html1;
+		}
+	} else {
+		document.getElementById(targetwindow).innerHTML = "<hr><br><b>Topic 2: </b> " 
+		+ difftopic
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<b> User</b> " + diffuser
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<b> Server </b>" + diffhost
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<b> Port </b>" + diffport
+		// this is supposed to send on the session, but errors with session.close is not a function  
+		//		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<button onclick=\"clearBox('" + targetwindow + "','" + topic + "')\">clear</button>" + "<br><br>"
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<button onclick=\"clearBox('" + targetwindow + "','" + topic + "','"+connection1+"')\">clear</button>" + "<br><br>"
+		+ JSON.stringify(newValue.get())+"<br>";
+		};
+		
+		// time capture for logging
+		let millis_post_event = Date.now();
+		
+		let millis_post_event_string = date_event.toUTCString();
+		let millis_post_performance = performance.now();
+
+		let millis_previous = millis_post_event;
+
+		let total_millis = Math.abs(start_date_event_millis - millis_post_event);
+		let total_millis_performance = Math.abs(start_millis_performance - millis_post_performance);
+		let total_millis_math = millis_post_event - start_date_event_millis;
+		if (document.getElementById("consoleperf").checked) {
+			console.log('performance for topic: ' + session2_topic_me);
+			console.log('milliseconds post message: ' + millis_post_event + " topic: " + session2_topic_me);
+			console.log('total milliseconds: ' + total_millis + " topic: " + session2_topic_me);
+			console.log('total performance: ' + total_millis_performance + " topic: " + session2_topic_me);
+			}	
+		total_time += total_millis_math;
+		if (document.getElementById("consoleperf").checked) {
+		console.log('accumulated ms: ' + total_time + " topic: " + session2_topic_me);
+		}
+	});
+	
+});
+tside_to_side.style.display = "table-cell";
+}
+
+function submit_subscribe3(){
+
+// start session timer
+let millis_connection = Date.now();
+let total_time = 0;
+let millies_previous;
+
+// set style for output table
+tside_to_side.style.display = "block";
+
+// get diffusion paramters from html form
+topic_var=document.getElementById("diff_topic");
+user_var=document.getElementById("diff_principal");
+password_var=document.getElementById("diff_password");
+host_var=document.getElementById("diff_host");
+port_var=document.getElementById("diff_port");
+const diffuser = user_var.value;
+const diffpassword = password_var.value;
+const difftopic = topic_var.value;
+const diffhost = host_var.value;
+const diffport = port_var.value;
+
+// Connect to Diffusion
+let connection1 = diffusion.connect({
+    host : host_var.value,
+    port : port_var.value,
+    principal : user_var.value,
+    credentials : password_var.value
+}).then(function(session3)
+{
+
+// Connect to the topic
+session3_topic_me=topic_var.value;
+session3.select(session3_topic_me);
+
+//  begin subscribe
+session3.addStream(session3_topic_me,diffusion.datatypes.json()).on('value',function(topic, specification, newValue, oldValue) {
+
+// capture starting time for new event/message  
+let date_event = new Date();
+let date_event_string = date_event.toUTCString();
+let start_millis_performance = performance.now();
+let start_date_event_millis = Date.now();
+if (millies_previous){
+	start_date_event_millis = millies_previous;
+	}
+	if (document.getElementById("consoleperf").checked) {
+console.log('Event Timestamp for topic: ' + session3_topic_me);
+console.log(date_event_string);
+console.log('Current Milliseconds ' + start_date_event_millis);
+	}
+
+if (document.getElementById("side-to-side").checked) {
+	var targetwindow = "push-out3-side";
+	} else {
+	var targetwindow = "push-out3";
+	}	
+
+if (document.getElementById("beautify").checked) {
+		
+	// other function to recursively loop through objects example
+	// function recursiveKeys(obj) {
+	//  Object.keys(obj).forEach((key) => {
+	//    if (typeof obj === "object") {
+	//      Object.keys(obj[key]).forEach((innerKey) => {
+	//        console.log(`${key}.${innerKey}`);
+	//      });
+	//    }
+	//  });
+	// }
+
+	var event = newValue.get();
+	var allPropertyNames = Object.keys(event);
+	 if (event instanceof Array) {
+		if (document.getElementById("consolelog").checked) {
+		console.log('array detected at root');
+		}
+	 };
+	var html1 = "<table><tr><td class='demotitle'><b>Topic 3</b></td><td class='demotitle'><b>" 
+		+ difftopic
+		+ "</b></td></tr><tr><td class='demoheader'>User</td><td class='demoheader'> " + diffuser
+		+ "</td></tr><tr><td class='demoheader'>Server</td><td class='demoheader'>" + diffhost
+		+ "</td></tr><tr><td class='demoheader'>Port</td><td class='demoheader'>" + diffport 
+		+ "</td></tr><tr><td class='demotitle'><b>Data</b></td><td class='demotitle'>&nbsp</td></tr>";
+	for (var j=0; j<allPropertyNames.length; j++) {
+		var obj_name = allPropertyNames[j];
+		var obj_value = event[obj_name];	
+		
+		if (obj_value instanceof Array) {
+		if (document.getElementById("consolelog").checked) {
+		console.log('level 2 array detected');
+		console.log(JSON.stringify(obj_value));
+		}
+
+		// alternative reducer code - needs debugging
+		// rather than the loop for obj_value below, a reducer function can be used
+		// obj_value = obj_value.reduce((acc,curr) => (acc, obj_value));
+		
+		let obj_tmp2 ={};
+		obj_value.forEach((v,i) => obj_tmp2[i] = v);
+		obj_value = obj_tmp2;
+		if (document.getElementById("consolelog").checked) {
+		console.log('level 2 nested array converted to object');
+		console.log(JSON.stringify(obj_value));
+		}
+		 };
+
+		if (typeof obj_value === 'object') { 
+		if (document.getElementById("consolelog").checked) {
+			console.log('processing level 2 object');
+			console.log(JSON.stringify(obj_value));
+			}
+			html1 += "<tr><td>" + obj_name + "</td><td></td></tr>";
+			var subkeys = Object.keys(event[obj_name]);			
+			for (let aindex = 0; aindex < subkeys.length; ++aindex) {
+				var subkey_name = subkeys[aindex];
+				var obj_value_n = Object.values(obj_value);
+
+				if (obj_value_n[aindex] instanceof Array) {
+				if (document.getElementById("consolelog").checked) {
+					console.log('level 3 array detected');
+					}
+					var obj_tmp3 = obj_value_n[aindex];					
+					let obj_tmp_from_array ={};
+					obj_tmp3.forEach((v,i) => obj_tmp_from_array[i] = v);
+					obj_value_n[aindex] = obj_tmp_from_array;
+					if (document.getElementById("consolelog").checked) {
+					console.log('level 3 nested array converted to object');
+					console.log(JSON.stringify(obj_value_n[aindex]));
+					}
+				};
+
+				if (typeof obj_value_n[aindex] === 'object') {
+				if (document.getElementById("consolelog").checked) {
+					console.log('processing level 3 object');
+					console.log(JSON.stringify(obj_value_n));
+					}
+					html1 += "<tr><td>&nbsp&nbsp&nbsp" + subkeys[aindex] + "</td><td></td></tr>";
+					var sub_allPropertyNames = Object.keys(obj_value_n[aindex]);
+					var obj_value_n2 = Object.values(obj_value_n[aindex]);
+					
+					for (let bindex = 0; bindex < sub_allPropertyNames.length; ++bindex) {
+						var subkey_name2 = sub_allPropertyNames[bindex];
+						
+						if (obj_value_n2[bindex] instanceof Array) {
+						if (document.getElementById("consolelog").checked) {
+							console.log('level 4 array detected for');
+							console.log(obj_value_n2[bindex]);
+							}
+							var obj_tmp4 = obj_value_n2[bindex];
+							let obj_tmp_from_array4 ={};
+							obj_tmp4.forEach((v,i) => obj_tmp_from_array4[i] = v);
+							obj_value_n2[bindex] = obj_tmp_from_array4;
+							if (document.getElementById("consolelog").checked) {
+							console.log('level 4 nested array converted to object');
+							console.log(JSON.stringify(obj_value_n2[bindex]));	
+							}							
+							};
+						
+						 if (typeof obj_value_n2[bindex] === 'object') {
+							{
+							if (document.getElementById("consolelog").checked) {
+							console.log('processing level 4 object');
+							console.log(JSON.stringify(obj_value_n2[bindex]));	
+							}
+							}
+							html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + sub_allPropertyNames[bindex] + "</td><td></td></tr>";
+
+							var subc_allPropertyNames = Object.keys(obj_value_n2[bindex]);
+							var obj_value_n4 = Object.values(obj_value_n2[bindex]);
+						
+							for (let cindex = 0; cindex < subc_allPropertyNames.length; ++cindex) {
+								var subkey_name3 = subc_allPropertyNames[cindex];
+								 
+								if (obj_value_n4[cindex] instanceof Array) {
+									if (document.getElementById("consolelog").checked) {
+									console.log('level 5 array detected for');
+									console.log(obj_value_n4[cindex]);
+									}
+									var obj_tmp5 = obj_value_n4[cindex];
+									let obj_tmp_from_array5 ={};
+									obj_tmp5.forEach((v,i) => obj_tmp_from_array5[i] = v);
+									obj_value_n4[cindex] = obj_tmp_from_array5;
+									if (document.getElementById("consolelog").checked) {
+									console.log('level 5 nested array converted to object');
+									console.log(JSON.stringify(obj_value_n4[cindex]));
+									}
+									};
+									
+								if (typeof obj_value_n4[cindex] === 'object') {
+									if (document.getElementById("consolelog").checked) {
+									console.log('processing level 5 object');
+									console.log(JSON.stringify(obj_value_n4[cindex]));
+									}
+									var sub_allPropertyNamesc = Object.keys(obj_value_n4[cindex]);
+									var obj_value_n5 = Object.values(obj_value_n4[cindex]);
+									
+									html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subc_allPropertyNames[cindex] + "</td><td></td></tr>";
+										
+									for (let dindex = 0; dindex < sub_allPropertyNamesc.length; ++dindex) {
+										var subkey_name4 = sub_allPropertyNamesc[dindex];
+
+										if (obj_value_n5[dindex] instanceof Array) {
+										if (document.getElementById("consolelog").checked) {
+											console.log('level 6 array detected for');
+											console.log(obj_value_n5[dindex]);
+											}
+											var obj_tmp6 = obj_value_n5[dindex];
+											let obj_tmp_from_array6 ={};
+											obj_tmp6.forEach((v,i) => obj_tmp_from_array6[i] = v);
+											obj_value_n5[dindex] = obj_tmp_from_array6;
+											if (document.getElementById("consolelog").checked) {
+											console.log('level 6 nested array converted to object');
+											console.log(JSON.stringify(obj_value_n5[dindex]));	
+											}
+											};
+										
+										if (typeof obj_value_n5[dindex] === 'object') {
+											if (document.getElementById("consolelog").checked) {
+											console.log('processing level 6 object');
+											console.log(JSON.stringify(obj_value_n5[dindex]));
+											}
+											var sub_allPropertyNamesd = Object.keys(obj_value_n5[dindex]);
+											var obj_value_n6 = Object.values(obj_value_n5[dindex]);											
+											html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + sub_allPropertyNamesc[dindex] + "</td><td></td></tr>";
+
+											for (let eindex = 0; eindex < sub_allPropertyNamesd.length; ++eindex) {
+												var subkey_name5 = sub_allPropertyNamesd[eindex];	
+												html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name5 + "</td><td>" + obj_value_n6[eindex]; + "</td></tr>";
+												}
+											} else {
+											html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name4 + "</td><td>" + obj_value_n5[dindex]; + "</td></tr>";
+											}
+										}
+									} else {									
+										html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name3 + "</td><td>" + obj_value_n4[cindex] + "</td></tr>";
+								 }
+								 }
+							} else {
+							html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name2 + "</td><td>" + obj_value_n2[bindex] + "</td></tr>";	
+							};
+						 };
+					 } else {
+					html1 += "<tr><td>&nbsp&nbsp&nbsp" + subkeys[aindex] + "</td><td>" + obj_value_n[aindex] + "</td></tr>";
+					};
+				};
+			} else {
+			html1 += "<tr><td>" + obj_name + "</td><td>" + obj_value + "</td></tr>";
+			}
+		html1 += "</html>";
+		document.getElementById(targetwindow).innerHTML = html1;
+		}
+	} else {
+		document.getElementById(targetwindow).innerHTML = "<hr><br><b>Topic 3: </b> " 
+		+ difftopic
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<b> User</b> " + diffuser
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<b> Server </b>" + diffhost
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<b> Port </b>" + diffport
+		// this is supposed to send on the session, but errors with session.close is not a function  
+		//		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<button onclick=\"clearBox('" + targetwindow + "','" + topic + "')\">clear</button>" + "<br><br>"
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<button onclick=\"clearBox('" + targetwindow + "','" + topic + "','"+connection1+"')\">clear</button>" + "<br><br>"
+		+ JSON.stringify(newValue.get())+"<br>";
+		};
+		
+		// time capture for logging
+		let millis_post_event = Date.now();
+		let millis_previous = millis_post_event;
+		
+		let millis_post_event_string = date_event.toUTCString();
+		let millis_post_performance = performance.now();
+
+		let total_millis = Math.abs(start_date_event_millis - millis_post_event);
+		let total_millis_performance = Math.abs(start_millis_performance - millis_post_performance);
+		let total_millis_math = millis_post_event - start_date_event_millis;
+		if (document.getElementById("consoleperf").checked) {
+		console.log('performance for topic: ' + session3_topic_me);
+		console.log('milliseconds post message: ' + millis_post_event + " topic: " + session3_topic_me);
+		console.log('total milliseconds: ' + total_millis + " topic: " + session3_topic_me);
+		console.log('total performance: ' + total_millis_performance + " topic: " + session3_topic_me);
+				}
+		total_time += total_millis_math;
+		if (document.getElementById("consoleperf").checked) {
+			console.log('accumulated ms: ' + total_time + " topic: " + session_topic3_me);
+		}
+	});
+	
+});
+tside_to_side.style.display = "table-cell";
+}
+
+function submit_subscribe4(){
+
+// start session timer
+let millis_connection = Date.now();
+let total_time = 0;
+let millies_previous;
+
+// set style for output table
+tside_to_side.style.display = "block";
+
+// get diffusion paramters from html form
+topic_var=document.getElementById("diff_topic");
+user_var=document.getElementById("diff_principal");
+password_var=document.getElementById("diff_password");
+host_var=document.getElementById("diff_host");
+port_var=document.getElementById("diff_port");
+const diffuser = user_var.value;
+const diffpassword = password_var.value;
+const difftopic = topic_var.value;
+const diffhost = host_var.value;
+const diffport = port_var.value;
+
+// Connect to Diffusion
+let connection1 = diffusion.connect({
+    host : host_var.value,
+    port : port_var.value,
+    principal : user_var.value,
+    credentials : password_var.value
+}).then(function(session4)
+{
+
+// Connect to the topic
+session4_topic_me=topic_var.value;
+session4.select(session4_topic_me);
+
+//  begin subscribe
+session4.addStream(session4_topic_me,diffusion.datatypes.json()).on('value',function(topic, specification, newValue, oldValue) {
+
+// capture starting time for new event/message  
+let date_event = new Date();
+let date_event_string = date_event.toUTCString();
+let start_millis_performance = performance.now();
+let start_date_event_millis = Date.now();
+if (millies_previous){
+	start_date_event_millis = millies_previous;
+	}
+	if (document.getElementById("consoleperf").checked) {
+console.log('Event Timestamp for topic: ' + session4_topic_me);
+console.log(date_event_string);
+console.log('Current Milliseconds ' + start_date_event_millis);
+}
+
+if (document.getElementById("side-to-side").checked) {
+	var targetwindow = "push-out4-side";
+	} else {
+	var targetwindow = "push-out4";
+	}	
+
+if (document.getElementById("beautify").checked) {
+		
+	// other function to recursively loop through objects example
+	// function recursiveKeys(obj) {
+	//  Object.keys(obj).forEach((key) => {
+	//    if (typeof obj === "object") {
+	//      Object.keys(obj[key]).forEach((innerKey) => {
+	//        console.log(`${key}.${innerKey}`);
+	//      });
+	//    }
+	//  });
+	// }
+
+	var event = newValue.get();
+	var allPropertyNames = Object.keys(event);
+	 if (event instanceof Array) {
+	 if (document.getElementById("consolelog").checked) {
+		console.log('array detected at root');
+		}
+	 };
+	var html1 = "<table><tr><td class='demotitle'><b>Topic 4</b></td><td class='demotitle'><b>" 
+		+ difftopic
+		+ "</b></td></tr><tr><td class='demoheader'>User</td><td class='demoheader'> " + diffuser
+		+ "</td></tr><tr><td class='demoheader'>Server</td><td class='demoheader'>" + diffhost
+		+ "</td></tr><tr><td class='demoheader'>Port</td><td class='demoheader'>" + diffport 
+		+ "</td></tr><tr><td class='demotitle'><b>Data</b></td><td class='demotitle'>&nbsp</td></tr>";
+	for (var j=0; j<allPropertyNames.length; j++) {
+		var obj_name = allPropertyNames[j];
+		var obj_value = event[obj_name];	
+		
+		if (obj_value instanceof Array) {
+		if (document.getElementById("consolelog").checked) {
+		console.log('level 2 array detected');
+		console.log(JSON.stringify(obj_value));
+}
+		// alternative reducer code - needs debugging
+		// rather than the loop for obj_value below, a reducer function can be used
+		// obj_value = obj_value.reduce((acc,curr) => (acc, obj_value));
+		
+		let obj_tmp2 ={};
+		obj_value.forEach((v,i) => obj_tmp2[i] = v);
+		obj_value = obj_tmp2;
+		if (document.getElementById("consolelog").checked) {
+		console.log('level 2 nested array converted to object');
+		console.log(JSON.stringify(obj_value));
+		}
+		 };
+
+		if (typeof obj_value === 'object') { 
+		if (document.getElementById("consolelog").checked) {
+			console.log('processing level 2 object');
+			console.log(JSON.stringify(obj_value));
+			}
+			html1 += "<tr><td>" + obj_name + "</td><td></td></tr>";
+			var subkeys = Object.keys(event[obj_name]);			
+			for (let aindex = 0; aindex < subkeys.length; ++aindex) {
+				var subkey_name = subkeys[aindex];
+				var obj_value_n = Object.values(obj_value);
+
+				if (obj_value_n[aindex] instanceof Array) {
+				if (document.getElementById("consolelog").checked) {
+					console.log('level 3 array detected');
+					}
+					var obj_tmp3 = obj_value_n[aindex];					
+					let obj_tmp_from_array ={};
+					obj_tmp3.forEach((v,i) => obj_tmp_from_array[i] = v);
+					obj_value_n[aindex] = obj_tmp_from_array;
+					if (document.getElementById("consolelog").checked) {
+					console.log('level 3 nested array converted to object');
+					console.log(JSON.stringify(obj_value_n[aindex]));
+					}
+				};
+
+				if (typeof obj_value_n[aindex] === 'object') {
+				if (document.getElementById("consolelog").checked) {
+					console.log('processing level 3 object');
+					console.log(JSON.stringify(obj_value_n));
+					}
+					html1 += "<tr><td>&nbsp&nbsp&nbsp" + subkeys[aindex] + "</td><td></td></tr>";
+					var sub_allPropertyNames = Object.keys(obj_value_n[aindex]);
+					var obj_value_n2 = Object.values(obj_value_n[aindex]);
+					
+					for (let bindex = 0; bindex < sub_allPropertyNames.length; ++bindex) {
+						var subkey_name2 = sub_allPropertyNames[bindex];
+						
+						if (obj_value_n2[bindex] instanceof Array) {
+							if (document.getElementById("consolelog").checked) {
+							console.log('level 4 array detected for');
+							console.log(obj_value_n2[bindex]);
+							}
+							var obj_tmp4 = obj_value_n2[bindex];
+							let obj_tmp_from_array4 ={};
+							obj_tmp4.forEach((v,i) => obj_tmp_from_array4[i] = v);
+							obj_value_n2[bindex] = obj_tmp_from_array4;
+							if (document.getElementById("consolelog").checked) {
+							console.log('level 4 nested array converted to object');
+							console.log(JSON.stringify(obj_value_n2[bindex]));
+								}
+							};
+						
+						 if (typeof obj_value_n2[bindex] === 'object') {
+							if (document.getElementById("consolelog").checked) {
+							console.log('processing level 4 object');
+							console.log(JSON.stringify(obj_value_n2[bindex]));
+								}
+							html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + sub_allPropertyNames[bindex] + "</td><td></td></tr>";
+
+							var subc_allPropertyNames = Object.keys(obj_value_n2[bindex]);
+							var obj_value_n4 = Object.values(obj_value_n2[bindex]);
+						
+							for (let cindex = 0; cindex < subc_allPropertyNames.length; ++cindex) {
+								var subkey_name3 = subc_allPropertyNames[cindex];
+								 
+								if (obj_value_n4[cindex] instanceof Array) {
+								if (document.getElementById("consolelog").checked) {
+									console.log('level 5 array detected for');
+									console.log(obj_value_n4[cindex]);
+									}
+									var obj_tmp5 = obj_value_n4[cindex];
+									let obj_tmp_from_array5 ={};
+									obj_tmp5.forEach((v,i) => obj_tmp_from_array5[i] = v);
+									obj_value_n4[cindex] = obj_tmp_from_array5;
+									if (document.getElementById("consolelog").checked) {
+									console.log('level 5 nested array converted to object');
+									console.log(JSON.stringify(obj_value_n4[cindex]));
+									}
+									};
+									
+								if (typeof obj_value_n4[cindex] === 'object') {
+								if (document.getElementById("consolelog").checked) {
+									console.log('processing level 5 object');
+									console.log(JSON.stringify(obj_value_n4[cindex]));
+									}
+									var sub_allPropertyNamesc = Object.keys(obj_value_n4[cindex]);
+									var obj_value_n5 = Object.values(obj_value_n4[cindex]);
+									
+									html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subc_allPropertyNames[cindex] + "</td><td></td></tr>";
+										
+									for (let dindex = 0; dindex < sub_allPropertyNamesc.length; ++dindex) {
+										var subkey_name4 = sub_allPropertyNamesc[dindex];
+
+										if (obj_value_n5[dindex] instanceof Array) {
+										if (document.getElementById("consolelog").checked) {
+											console.log('level 6 array detected for');
+											console.log(obj_value_n5[dindex]);
+											}
+											var obj_tmp6 = obj_value_n5[dindex];
+											let obj_tmp_from_array6 ={};
+											obj_tmp6.forEach((v,i) => obj_tmp_from_array6[i] = v);
+											obj_value_n5[dindex] = obj_tmp_from_array6;
+											if (document.getElementById("consolelog").checked) {
+											console.log('level 6 nested array converted to object');
+											console.log(JSON.stringify(obj_value_n5[dindex]));	
+											}											
+											};
+										
+										if (typeof obj_value_n5[dindex] === 'object') {
+											if (document.getElementById("consolelog").checked) {
+											console.log('processing level 6 object');
+											console.log(JSON.stringify(obj_value_n5[dindex]));
+											}
+											
+											var sub_allPropertyNamesd = Object.keys(obj_value_n5[dindex]);
+											var obj_value_n6 = Object.values(obj_value_n5[dindex]);											
+											html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + sub_allPropertyNamesc[dindex] + "</td><td></td></tr>";
+
+											for (let eindex = 0; eindex < sub_allPropertyNamesd.length; ++eindex) {
+												var subkey_name5 = sub_allPropertyNamesd[eindex];	
+												html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name5 + "</td><td>" + obj_value_n6[eindex]; + "</td></tr>";
+												}
+											} else {
+											html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name4 + "</td><td>" + obj_value_n5[dindex]; + "</td></tr>";
+											}
+										}
+									} else {									
+										html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name3 + "</td><td>" + obj_value_n4[cindex] + "</td></tr>";
+								 }
+								 }
+							} else {
+							html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name2 + "</td><td>" + obj_value_n2[bindex] + "</td></tr>";	
+							};
+						 };
+					 } else {
+					html1 += "<tr><td>&nbsp&nbsp&nbsp" + subkeys[aindex] + "</td><td>" + obj_value_n[aindex] + "</td></tr>";
+					};
+				};
+			} else {
+			html1 += "<tr><td>" + obj_name + "</td><td>" + obj_value + "</td></tr>";
+			}
+		html1 += "</html>";
+		document.getElementById(targetwindow).innerHTML = html1;
+		}
+	} else {
+		document.getElementById(targetwindow).innerHTML = "<hr><br><b>Topic 4: </b> " 
+		+ difftopic
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<b> User</b> " + diffuser
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<b> Server </b>" + diffhost
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<b> Port </b>" + diffport
+		// this is supposed to send on the session, but errors with session.close is not a function  
+		//		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<button onclick=\"clearBox('" + targetwindow + "','" + topic + "')\">clear</button>" + "<br><br>"
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<button onclick=\"clearBox('" + targetwindow + "','" + topic + "','"+connection1+"')\">clear</button>" + "<br><br>"
+		+ JSON.stringify(newValue.get())+"<br>";
+		};
+		
+		// time capture for logging
+		let millis_post_event = Date.now();
+		let millis_previous = millis_post_event;
+		
+		let millis_post_event_string = date_event.toUTCString();
+		let millis_post_performance = performance.now();
+
+		let total_millis = Math.abs(start_date_event_millis - millis_post_event);
+		let total_millis_performance = Math.abs(start_millis_performance - millis_post_performance);
+		let total_millis_math = millis_post_event - start_date_event_millis;
+		if (document.getElementById("consoleperf").checked) {
+		console.log('performance for topic: ' + session4_topic_me);
+		console.log('milliseconds post message: ' + millis_post_event + " topic: " + session4_topic_me);
+		console.log('total milliseconds: ' + total_millis + " topic: " + session4_topic_me);
+		console.log('total performance: ' + total_millis_performance + " topic: " + session4_topic_me);
+				}
+		total_time += total_millis_math;
+if (document.getElementById("consoleperf").checked) {
+		console.log('accumulated ms: ' + total_time + " topic: " + session4_topic_me);
+		}
+	});
+	
+});
+tside_to_side.style.display = "table-cell";
+}
+
+function submit_subscribe5(){
+
+// start session timer
+let millis_connection = Date.now();
+let total_time = 0;
+let millies_previous;
+
+// set style for output table
+tside_to_side.style.display = "block";
+
+// get diffusion paramters from html form
+topic_var=document.getElementById("diff_topic");
+user_var=document.getElementById("diff_principal");
+password_var=document.getElementById("diff_password");
+host_var=document.getElementById("diff_host");
+port_var=document.getElementById("diff_port");
+const diffuser = user_var.value;
+const diffpassword = password_var.value;
+const difftopic = topic_var.value;
+const diffhost = host_var.value;
+const diffport = port_var.value;
+
+// Connect to Diffusion
+let connection1 = diffusion.connect({
+    host : host_var.value,
+    port : port_var.value,
+    principal : user_var.value,
+    credentials : password_var.value
+}).then(function(session5)
+{
+
+// Connect to the topic
+session5_topic_me=topic_var.value;
+session5.select(session5_topic_me);
+
+//  begin subscribe
+session5.addStream(session5_topic_me,diffusion.datatypes.json()).on('value',function(topic, specification, newValue, oldValue) {
+
+// capture starting time for new event/message  
+let date_event = new Date();
+let date_event_string = date_event.toUTCString();
+let start_date_event_millis = Date.now();
+let start_millis_performance = performance.now();
+if (millies_previous){
+	start_date_event_millis = millies_previous;
+	}
+if (document.getElementById("consoleperf").checked) {
+console.log('Event Timestamp for topic: ' + session5_topic_me);
+console.log(date_event_string);
+console.log('Current Milliseconds ' + start_date_event_millis);
+}
+if (document.getElementById("side-to-side").checked) {
+	var targetwindow = "push-out5-side";
+	} else {
+	var targetwindow = "push-out5";
+	}	
+
+if (document.getElementById("beautify").checked) {
+		
+	// other function to recursively loop through objects example
+	// function recursiveKeys(obj) {
+	//  Object.keys(obj).forEach((key) => {
+	//    if (typeof obj === "object") {
+	//      Object.keys(obj[key]).forEach((innerKey) => {
+	//        console.log(`${key}.${innerKey}`);
+	//      });
+	//    }
+	//  });
+	// }
+
+	var event = newValue.get();
+	var allPropertyNames = Object.keys(event);
+	 if (event instanceof Array) {
+	 if (document.getElementById("consolelog").checked) {
+		console.log('array detected at root');
+		}
+	 };
+	var html1 = "<table><tr><td class='demotitle'><b>Topic 5</b></td><td class='demotitle'><b>" 
+		+ difftopic
+		+ "</b></td></tr><tr><td class='demoheader'>User</td><td class='demoheader'> " + diffuser
+		+ "</td></tr><tr><td class='demoheader'>Server</td><td class='demoheader'>" + diffhost
+		+ "</td></tr><tr><td class='demoheader'>Port</td><td class='demoheader'>" + diffport 
+		+ "</td></tr><tr><td class='demotitle'><b>Data</b></td><td class='demotitle'>&nbsp</td></tr>";
+	for (var j=0; j<allPropertyNames.length; j++) {
+		var obj_name = allPropertyNames[j];
+		var obj_value = event[obj_name];	
+		
+		if (obj_value instanceof Array) {
+		if (document.getElementById("consolelog").checked) {
+		console.log('level 2 array detected');
+		console.log(JSON.stringify(obj_value));
+		}
+
+		// alternative reducer code - needs debugging
+		// rather than the loop for obj_value below, a reducer function can be used
+		// obj_value = obj_value.reduce((acc,curr) => (acc, obj_value));
+		
+		let obj_tmp2 ={};
+		obj_value.forEach((v,i) => obj_tmp2[i] = v);
+		obj_value = obj_tmp2;
+		if (document.getElementById("consolelog").checked) {
+		console.log('level 2 nested array converted to object');
+		console.log(JSON.stringify(obj_value));
+		}
+		 };
+
+		if (typeof obj_value === 'object') { 
+		if (document.getElementById("consolelog").checked) {
+			console.log('processing level 2 object');
+			console.log(JSON.stringify(obj_value));
+			}
+			html1 += "<tr><td>" + obj_name + "</td><td></td></tr>";
+			var subkeys = Object.keys(event[obj_name]);			
+			for (let aindex = 0; aindex < subkeys.length; ++aindex) {
+				var subkey_name = subkeys[aindex];
+				var obj_value_n = Object.values(obj_value);
+
+				if (obj_value_n[aindex] instanceof Array) {
+					console.log('level 3 array detected');
+					var obj_tmp3 = obj_value_n[aindex];					
+					let obj_tmp_from_array ={};
+					obj_tmp3.forEach((v,i) => obj_tmp_from_array[i] = v);
+					obj_value_n[aindex] = obj_tmp_from_array;
+					if (document.getElementById("consolelog").checked) {
+					console.log('level 3 nested array converted to object');
+					console.log(JSON.stringify(obj_value_n[aindex]));
+					}
+				};
+
+				if (typeof obj_value_n[aindex] === 'object') {
+				if (document.getElementById("consolelog").checked) {
+					console.log('processing level 3 object');
+					console.log(JSON.stringify(obj_value_n));
+					}
+					html1 += "<tr><td>&nbsp&nbsp&nbsp" + subkeys[aindex] + "</td><td></td></tr>";
+					var sub_allPropertyNames = Object.keys(obj_value_n[aindex]);
+					var obj_value_n2 = Object.values(obj_value_n[aindex]);
+					
+					for (let bindex = 0; bindex < sub_allPropertyNames.length; ++bindex) {
+						var subkey_name2 = sub_allPropertyNames[bindex];
+						
+						if (obj_value_n2[bindex] instanceof Array) {
+						if (document.getElementById("consolelog").checked) {
+							console.log('level 4 array detected for');
+							console.log(obj_value_n2[bindex]);
+							}
+							var obj_tmp4 = obj_value_n2[bindex];
+							let obj_tmp_from_array4 ={};
+							obj_tmp4.forEach((v,i) => obj_tmp_from_array4[i] = v);
+							obj_value_n2[bindex] = obj_tmp_from_array4;
+							if (document.getElementById("consolelog").checked) {
+							console.log('level 4 nested array converted to object');
+							console.log(JSON.stringify(obj_value_n2[bindex]));	
+							}							
+							};
+						
+						 if (typeof obj_value_n2[bindex] === 'object') {
+						 if (document.getElementById("consolelog").checked) {
+							console.log('processing level 4 object');
+							console.log(JSON.stringify(obj_value_n2[bindex]));	
+								}
+							html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + sub_allPropertyNames[bindex] + "</td><td></td></tr>";
+
+							var subc_allPropertyNames = Object.keys(obj_value_n2[bindex]);
+							var obj_value_n4 = Object.values(obj_value_n2[bindex]);
+						
+							for (let cindex = 0; cindex < subc_allPropertyNames.length; ++cindex) {
+								var subkey_name3 = subc_allPropertyNames[cindex];
+								 
+								if (obj_value_n4[cindex] instanceof Array) {
+								if (document.getElementById("consolelog").checked) {
+									console.log('level 5 array detected for');
+									console.log(obj_value_n4[cindex]);
+									}
+									var obj_tmp5 = obj_value_n4[cindex];
+									let obj_tmp_from_array5 ={};
+									obj_tmp5.forEach((v,i) => obj_tmp_from_array5[i] = v);
+									obj_value_n4[cindex] = obj_tmp_from_array5;
+									if (document.getElementById("consolelog").checked) {
+									console.log('level 5 nested array converted to object');
+									console.log(JSON.stringify(obj_value_n4[cindex]));
+									}
+									};
+									
+								if (typeof obj_value_n4[cindex] === 'object') {
+								if (document.getElementById("consolelog").checked) {
+									console.log('processing level 5 object');
+									console.log(JSON.stringify(obj_value_n4[cindex]));
+									}
+									var sub_allPropertyNamesc = Object.keys(obj_value_n4[cindex]);
+									var obj_value_n5 = Object.values(obj_value_n4[cindex]);
+									
+									html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subc_allPropertyNames[cindex] + "</td><td></td></tr>";
+										
+									for (let dindex = 0; dindex < sub_allPropertyNamesc.length; ++dindex) {
+										var subkey_name4 = sub_allPropertyNamesc[dindex];
+
+										if (obj_value_n5[dindex] instanceof Array) {
+										if (document.getElementById("consolelog").checked) {
+											console.log('level 6 array detected for');
+											console.log(obj_value_n5[dindex]);
+											}
+											var obj_tmp6 = obj_value_n5[dindex];
+											let obj_tmp_from_array6 ={};
+											obj_tmp6.forEach((v,i) => obj_tmp_from_array6[i] = v);
+											obj_value_n5[dindex] = obj_tmp_from_array6;
+											if (document.getElementById("consolelog").checked) {
+											console.log('level 6 nested array converted to object');
+											console.log(JSON.stringify(obj_value_n5[dindex]));
+												}
+											};
+										
+										if (typeof obj_value_n5[dindex] === 'object') {
+										if (document.getElementById("consolelog").checked) {
+											console.log('processing level 6 object');
+											console.log(JSON.stringify(obj_value_n5[dindex]));
+											}
+											
+											var sub_allPropertyNamesd = Object.keys(obj_value_n5[dindex]);
+											var obj_value_n6 = Object.values(obj_value_n5[dindex]);											
+											html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + sub_allPropertyNamesc[dindex] + "</td><td></td></tr>";
+
+											for (let eindex = 0; eindex < sub_allPropertyNamesd.length; ++eindex) {
+												var subkey_name5 = sub_allPropertyNamesd[eindex];	
+												html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name5 + "</td><td>" + obj_value_n6[eindex]; + "</td></tr>";
+												}
+											} else {
+											html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name4 + "</td><td>" + obj_value_n5[dindex]; + "</td></tr>";
+											}
+										}
+									} else {									
+										html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name3 + "</td><td>" + obj_value_n4[cindex] + "</td></tr>";
+								 }
+								 }
+							} else {
+							html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name2 + "</td><td>" + obj_value_n2[bindex] + "</td></tr>";	
+							};
+						 };
+					 } else {
+					html1 += "<tr><td>&nbsp&nbsp&nbsp" + subkeys[aindex] + "</td><td>" + obj_value_n[aindex] + "</td></tr>";
+					};
+				};
+			} else {
+			html1 += "<tr><td>" + obj_name + "</td><td>" + obj_value + "</td></tr>";
+			}
+		html1 += "</html>";
+		document.getElementById(targetwindow).innerHTML = html1;
+		}
+	} else {
+		document.getElementById(targetwindow).innerHTML = "<hr><br><b>Topic 5: </b> " 
+		+ difftopic
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<b> User</b> " + diffuser
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<b> Server </b>" + diffhost
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<b> Port </b>" + diffport
+		// this is supposed to send on the session, but errors with session.close is not a function  
+		//		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<button onclick=\"clearBox('" + targetwindow + "','" + topic + "')\">clear</button>" + "<br><br>"
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<button onclick=\"clearBox('" + targetwindow + "','" + topic + "','"+connection1+"')\">clear</button>" + "<br><br>"
+		+ JSON.stringify(newValue.get())+"<br>";
+		};
+		
+		// time capture for logging
+		let millis_post_event = Date.now();
+		let millis_previous = millis_post_event;
+		
+		let millis_post_event_string = date_event.toUTCString();
+		let millis_post_performance = performance.now();
+
+		let total_millis = Math.abs(start_date_event_millis - millis_post_event);
+		let total_millis_performance = Math.abs(start_millis_performance - millis_post_performance);
+		let total_millis_math = millis_post_event - start_date_event_millis;
+		if (document.getElementById("consoleperf").checked) {
+		console.log('performance for topic: ' + session5_topic_me);
+		console.log('milliseconds post message: ' + millis_post_event + " topic: " + session5_topic_me);
+		console.log('total milliseconds: ' + total_millis + " topic: " + session5_topic_me);
+		console.log('total performance: ' + total_millis_performance + " topic: " + session5_topic_me);
+			}
+			
+		total_time += total_millis_math;
+
+		if (document.getElementById("consolelog").checked) {
+			console.log('accumulated ms: ' + total_time + " topic: " + session5_topic_me);
+			}
+	});
+	
+});
+tside_to_side.style.display = "table-cell";
+}
+
+function submit_subscribe6(){
+
+// start session timer
+let millis_connection = Date.now();
+let total_time = 0;
+let millies_previous;
+
+// set style for output table
+tside_to_side.style.display = "block";
+
+// get diffusion paramters from html form
+topic_var=document.getElementById("diff_topic");
+user_var=document.getElementById("diff_principal");
+password_var=document.getElementById("diff_password");
+host_var=document.getElementById("diff_host");
+port_var=document.getElementById("diff_port");
+const diffuser = user_var.value;
+const diffpassword = password_var.value;
+const difftopic = topic_var.value;
+const diffhost = host_var.value;
+const diffport = port_var.value;
+
+// Connect to Diffusion
+let connection1 = diffusion.connect({
+    host : host_var.value,
+    port : port_var.value,
+    principal : user_var.value,
+    credentials : password_var.value
+}).then(function(session6)
+{
+
+// Connect to the topic
+session6_topic_me=topic_var.value;
+session6.select(session6_topic_me);
+
+//  begin subscribe
+session6.addStream(session6_topic_me,diffusion.datatypes.json()).on('value',function(topic, specification, newValue, oldValue) {
+
+// capture starting time for new event/message  
+let date_event = new Date();
+let date_event_string = date_event.toUTCString();
+let start_date_event_millis = Date.now();
+if (millies_previous){
+	start_date_event_millis = millies_previous;
+	}
+let start_millis_performance = performance.now();
+if (document.getElementById("consoleperf").checked) {
+console.log('Event Timestamp for topic: ' + session6_topic_me);
+console.log(date_event_string);
+console.log('Current Milliseconds ' + start_date_event_millis);
+}
+if (document.getElementById("side-to-side").checked) {
+	var targetwindow = "push-out6-side";
+	} else {
+	var targetwindow = "push-out6";
+	}	
+
+if (document.getElementById("beautify").checked) {
+		
+	// other function to recursively loop through objects example
+	// function recursiveKeys(obj) {
+	//  Object.keys(obj).forEach((key) => {
+	//    if (typeof obj === "object") {
+	//      Object.keys(obj[key]).forEach((innerKey) => {
+	//        console.log(`${key}.${innerKey}`);
+	//      });
+	//    }
+	//  });
+	// }
+
+	var event = newValue.get();
+	var allPropertyNames = Object.keys(event);
+	 if (event instanceof Array) {
+	 if (document.getElementById("consolelog").checked) {
+		console.log('array detected at root');
+		}
+	 };
+	var html1 = "<table><tr><td class='demotitle'><b>Topic 6</b></td><td class='demotitle'><b>" 
+		+ difftopic
+		+ "</b></td></tr><tr><td class='demoheader'>User</td><td class='demoheader'> " + diffuser
+		+ "</td></tr><tr><td class='demoheader'>Server</td><td class='demoheader'>" + diffhost
+		+ "</td></tr><tr><td class='demoheader'>Port</td><td class='demoheader'>" + diffport 
+		+ "</td></tr><tr><td class='demotitle'><b>Data</b></td><td class='demotitle'>&nbsp</td></tr>";
+	for (var j=0; j<allPropertyNames.length; j++) {
+		var obj_name = allPropertyNames[j];
+		var obj_value = event[obj_name];	
+		
+		if (obj_value instanceof Array) {
+			if (document.getElementById("consolelog").checked) {
+				console.log('level 2 array detected');
+				console.log(JSON.stringify(obj_value));
+				}
+
+		// alternative reducer code - needs debugging
+		// rather than the loop for obj_value below, a reducer function can be used
+		// obj_value = obj_value.reduce((acc,curr) => (acc, obj_value));
+		
+		let obj_tmp2 ={};
+		obj_value.forEach((v,i) => obj_tmp2[i] = v);
+		obj_value = obj_tmp2;
+		if (document.getElementById("consolelog").checked) {
+			console.log('level 2 nested array converted to object');
+			console.log(JSON.stringify(obj_value));
+			}
+		 };
+
+		if (typeof obj_value === 'object') { 
+			if (document.getElementById("consolelog").checked) {
+			console.log('processing level 2 object');
+			console.log(JSON.stringify(obj_value));
+			}
+			html1 += "<tr><td>" + obj_name + "</td><td></td></tr>";
+			var subkeys = Object.keys(event[obj_name]);			
+			for (let aindex = 0; aindex < subkeys.length; ++aindex) {
+				var subkey_name = subkeys[aindex];
+				var obj_value_n = Object.values(obj_value);
+
+				if (obj_value_n[aindex] instanceof Array) {
+				if (document.getElementById("consolelog").checked) {
+					console.log('level 3 array detected');
+					}
+					var obj_tmp3 = obj_value_n[aindex];					
+					let obj_tmp_from_array ={};
+					obj_tmp3.forEach((v,i) => obj_tmp_from_array[i] = v);
+					obj_value_n[aindex] = obj_tmp_from_array;
+					if (document.getElementById("consolelog").checked) {
+					console.log('level 3 nested array converted to object');
+					console.log(JSON.stringify(obj_value_n[aindex]));
+					}
+				};
+
+				if (typeof obj_value_n[aindex] === 'object') {
+				if (document.getElementById("consolelog").checked) {
+					console.log('processing level 3 object');
+					console.log(JSON.stringify(obj_value_n));
+					}
+					html1 += "<tr><td>&nbsp&nbsp&nbsp" + subkeys[aindex] + "</td><td></td></tr>";
+					var sub_allPropertyNames = Object.keys(obj_value_n[aindex]);
+					var obj_value_n2 = Object.values(obj_value_n[aindex]);
+					
+					for (let bindex = 0; bindex < sub_allPropertyNames.length; ++bindex) {
+						var subkey_name2 = sub_allPropertyNames[bindex];
+						
+						if (obj_value_n2[bindex] instanceof Array) {
+						if (document.getElementById("consolelog").checked) {
+							console.log('level 4 array detected for');
+							console.log(obj_value_n2[bindex]);
+							}
+							var obj_tmp4 = obj_value_n2[bindex];
+							let obj_tmp_from_array4 ={};
+							obj_tmp4.forEach((v,i) => obj_tmp_from_array4[i] = v);
+							obj_value_n2[bindex] = obj_tmp_from_array4;
+							if (document.getElementById("consolelog").checked) {
+							console.log('level 4 nested array converted to object');
+							console.log(JSON.stringify(obj_value_n2[bindex]));		
+							}							
+							};
+						
+						 if (typeof obj_value_n2[bindex] === 'object') {
+							if (document.getElementById("consolelog").checked) {
+							console.log('processing level 4 object');
+							console.log(JSON.stringify(obj_value_n2[bindex]));							
+							}
+							html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + sub_allPropertyNames[bindex] + "</td><td></td></tr>";
+
+							var subc_allPropertyNames = Object.keys(obj_value_n2[bindex]);
+							var obj_value_n4 = Object.values(obj_value_n2[bindex]);
+						
+							for (let cindex = 0; cindex < subc_allPropertyNames.length; ++cindex) {
+								var subkey_name3 = subc_allPropertyNames[cindex];
+								 
+								if (obj_value_n4[cindex] instanceof Array) {
+								if (document.getElementById("consolelog").checked) {
+									console.log('level 5 array detected for');
+									console.log(obj_value_n4[cindex]);
+									}
+									var obj_tmp5 = obj_value_n4[cindex];
+									let obj_tmp_from_array5 ={};
+									obj_tmp5.forEach((v,i) => obj_tmp_from_array5[i] = v);
+									obj_value_n4[cindex] = obj_tmp_from_array5;
+									if (document.getElementById("consolelog").checked) {
+									console.log('level 5 nested array converted to object');
+									console.log(JSON.stringify(obj_value_n4[cindex]));
+									}
+									};
+									
+								if (typeof obj_value_n4[cindex] === 'object') {
+								if (document.getElementById("consolelog").checked) {
+									console.log('processing level 5 object');
+									console.log(JSON.stringify(obj_value_n4[cindex]));
+									}
+									var sub_allPropertyNamesc = Object.keys(obj_value_n4[cindex]);
+									var obj_value_n5 = Object.values(obj_value_n4[cindex]);
+									
+									html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subc_allPropertyNames[cindex] + "</td><td></td></tr>";
+										
+									for (let dindex = 0; dindex < sub_allPropertyNamesc.length; ++dindex) {
+										var subkey_name4 = sub_allPropertyNamesc[dindex];
+
+										if (obj_value_n5[dindex] instanceof Array) {
+										if (document.getElementById("consolelog").checked) {
+											console.log('level 6 array detected for');
+											console.log(obj_value_n5[dindex]);
+											}
+											var obj_tmp6 = obj_value_n5[dindex];
+											let obj_tmp_from_array6 ={};
+											obj_tmp6.forEach((v,i) => obj_tmp_from_array6[i] = v);
+											obj_value_n5[dindex] = obj_tmp_from_array6;
+											if (document.getElementById("consolelog").checked) {
+											console.log('level 6 nested array converted to object');
+											console.log(JSON.stringify(obj_value_n5[dindex]));	
+												}
+											};
+										
+										if (typeof obj_value_n5[dindex] === 'object') {
+										if (document.getElementById("consolelog").checked) {
+											console.log('processing level 6 object');
+											console.log(JSON.stringify(obj_value_n5[dindex]));
+											}
+											var sub_allPropertyNamesd = Object.keys(obj_value_n5[dindex]);
+											var obj_value_n6 = Object.values(obj_value_n5[dindex]);											
+											html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + sub_allPropertyNamesc[dindex] + "</td><td></td></tr>";
+
+											for (let eindex = 0; eindex < sub_allPropertyNamesd.length; ++eindex) {
+												var subkey_name5 = sub_allPropertyNamesd[eindex];	
+												html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name5 + "</td><td>" + obj_value_n6[eindex]; + "</td></tr>";
+												}
+											} else {
+											html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name4 + "</td><td>" + obj_value_n5[dindex]; + "</td></tr>";
+											}
+										}
+									} else {									
+										html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name3 + "</td><td>" + obj_value_n4[cindex] + "</td></tr>";
+								 }
+								 }
+							} else {
+							html1 += "<tr><td>&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp" + subkey_name2 + "</td><td>" + obj_value_n2[bindex] + "</td></tr>";	
+							};
+						 };
+					 } else {
+					html1 += "<tr><td>&nbsp&nbsp&nbsp" + subkeys[aindex] + "</td><td>" + obj_value_n[aindex] + "</td></tr>";
+					};
+				};
+			} else {
+			html1 += "<tr><td>" + obj_name + "</td><td>" + obj_value + "</td></tr>";
+			}
+		html1 += "</html>";
+		document.getElementById(targetwindow).innerHTML = html1;
+		}
+	} else {
+		document.getElementById(targetwindow).innerHTML = "<hr><br><b>Topic 6: </b> " 
+		+ difftopic
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<b> User</b> " + diffuser
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<b> Server </b>" + diffhost
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<b> Port </b>" + diffport
+		// this is supposed to send on the session, but errors with session.close is not a function  
+		//		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<button onclick=\"clearBox('" + targetwindow + "','" + topic + "')\">clear</button>" + "<br><br>"
+		+ "&nbsp&nbsp&nbsp&nbsp&nbsp<button onclick=\"clearBox('" + targetwindow + "','" + topic + "','"+connection1+"')\">clear</button>" + "<br><br>"
+		+ JSON.stringify(newValue.get())+"<br>";
+		};
+		
+		// time capture for logging
+		let millis_post_event = Date.now();
+		let millis_previous = millis_post_event;
+		
+		let millis_post_event_string = date_event.toUTCString();
+		let millis_post_performance = performance.now();
+
+		let total_millis = Math.abs(start_date_event_millis - millis_post_event);
+		let total_millis_performance = Math.abs(start_millis_performance - millis_post_performance);
+		let total_millis_math = millis_post_event - start_date_event_millis;
+		if (document.getElementById("consoleperf").checked) {
+		console.log('performance for topic: ' + session6_topic_me);
+		console.log('milliseconds post message: ' + millis_post_event + " topic: " + session6_topic_me);
+		console.log('total milliseconds: ' + total_millis + " topic: " + session6_topic_me);
+		console.log('total performance: ' + total_millis_performance + " topic: " + session6_topic_me);
+				}
+		total_time += total_millis_math;
+		if (document.getElementById("consoleperf").checked) {
+			console.log('accumulated ms: ' + total_time + " topic: " + session6_topic_me);
+		}
+	});
+	
+});
+tside_to_side.style.display = "table-cell";
+}
+
+</script>
+<b> Help </b> &nbsp&nbsp&nbsp&nbsp 
+	<div class="tooltip">&nbsp Parameters
+	<span class="tooltiptext">
+	The following parameters are collected above <br><br>
+	principal/user<br>
+	password<br>
+	topic selector<br>
+	host name URL / IP Address<br>
+	diffusion port (onprem - 8080, cloud - 443)
+	</span>
+	</div>
+		
+	<div class="tooltip">&nbsp Topic Selectors
+	<span class="tooltiptext">
+	Sample Topic Selectors<br><br>
+	1. Direct topic selector - topic name<br>
+	2. Next topic in tree - ?/topic name/.*<br>
+	3. Next subtopic in tree - ?/topic name/.*/.*<br>
+	4. Topic wildcard - ?/.*topic n.*<br>		
+	</span>
+	</div>
+	
+	<div class="tooltip">&nbsp Source Code
+	<span class="tooltiptext">
+	The following steps are performed in a typical Diffusion client <br><br>
+	1. Create a Session<br>
+	diffusion.connect({host, port, principal, credentials}) <br><br>
+	2. Connect to the Topic <br>
+	.then(function(session){session.select(topic); <br><br>			
+	3. Subscribe to the Topic <br>
+	session.addStream(topic,diffusion.datatypes.json()) <br>			
+	</span>
+	</div>
+	
+<table id="tside_to_side" class="master">
+<tr>
+<td id='push-out-side'>
+</td>
+<td id='push-out2-side'>
+</td>
+<td id='push-out3-side'>
+</td>
+<td id='push-out4-side'>
+</td>
+<td id='push-out5-side'>
+</td>
+<td id='push-out6-side'>
+</td>
+</table>
+
+<script>
+// the following removes the table row initially created when setting up the side to side table
+ if (document.querySelectorAll("#tside_to_side tr").length <= 1){
+	tside_to_side.style.display = "none";
+ }
+
+</script>
+
+<br>
+<p id='push-out'>
+</p>
+
+<p id='push-out2'>
+</p>
+
+<p id='push-out3'>
+</p>
+
+<p id='push-out4'>
+</p>
+
+<p id='push-out5'>
+</p>
+
+<p id='push-out6'>
+</p>
+
+<br><br><img src="demofooter.png"><br>
+</body>
+</html>

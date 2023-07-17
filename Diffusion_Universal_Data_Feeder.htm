@@ -1,0 +1,244 @@
+<html>
+<!-- Universal Demo Feeder
+Requirement
+The Feeder requires a local copy of the Diffusion Unminified Javascript SDK, available to download on diffusiondata.com.
+
+Function
+The utility reads a sample, line feed delimited, JSON file, parses the individual rows
+and then publishes to a named topic on the specified Diffusion Instance.  Several sample data files are provided
+in the samples directory. 
+
+Parameters 
+For on-premise installations, the host can be an ip address, hostname or localhost..., the Diffusion port defaults to 8080
+For Diffusion Cloud instances, the host url is as simple as: diffusionname.us.diffusion.cloud
+The Diffusion Cloud port defaults to 443.
+The delay parameter is a ms delay between publishing rows from the data file to diffusion
+
+Status
+Status is written to the browser console (shown with f12 on most popular browsers)
+-->
+<link rel="icon" href="feeder_icon.jpg" type="image/jpeg" sizes="16x16">
+<head>
+<title>Demo Feed</title>
+<script src="browserify-zlib-0.2.0.js"></script>
+<script src="diffusion-unminified-6.8.7.js"></script>
+</head>
+
+<!-- Set up the style sheet for the view source mouse over -->
+<style>
+.tooltip {
+  position: relative;
+  display: inline-block;
+  border-bottom: 1px dotted black;
+}
+
+.tooltip .tooltiptext {
+  visibility: hidden;
+  width: 500px;
+  background-color: #555;
+  color: #fff;
+  text-align: left;
+  border-radius: 6px;
+  padding: 5px 0;
+  position: absolute;
+  z-index: 1;
+  bottom: 125%;
+  left: 50%;
+  margin-left: 60px;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.tooltip .tooltiptext::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: #555 transparent transparent transparent;
+}
+
+.tooltip:hover .tooltiptext {
+  visibility: visible;
+  opacity: 1;
+}
+</style>
+
+<body>
+<img src="demobanner.png"><br>
+<h2>Diffusion Message Feeder</h2>
+
+<form id="publish_form">
+<table><tr>
+  <td>Credentials</td> <td><input type="text" name="diff_principal" value="admin" id="diff_principal" size="30"></td>
+  <td><input type="password" name="diff_password" value="password" id="diff_password" size="10"></td></tr><tr>
+  
+  <td>Topic Name</td><td><input type="text" name="topic" value="topic" id="diff_topic" size="30"></td> 
+  <td><select diff_topictype="diff_topictype" id="diff_topictype" name="diff_topictype">
+			<option value="JSON">JSON</option>
+			<option value="TIME_SERIES">TIME_SERIES</option>
+			<option value="BINARY">BINARY</option>
+			<option value="STRING">STRING</option>
+  </select></td></tr><tr>
+  
+  <td>Host</td><td><input type="text" name="diff_host" value="192.168.50.165" id="diff_host" size="30"></td>
+  <td><input type="text" name="diff_port" value="8080" id="diff_port" size="5"></td></tr><tr>
+  
+  <td>Delay</td><td><input type="text" name="p_delay" value="1000" id="p_delay" size="28">ms</td>
+  <!--input type="radio" name="diff_timeseries" id="diff_timeseries" -->
+    
+<td>  	<div class="tooltip">&nbsp Source Code
+		<span class="tooltiptext">	
+			// Create a Session<br>
+			diffusion.connect({host, port, principal, credentials}) <br><br>
+			// Create a Topic<br>
+			session.topics.add(topic, diffusion.topics.TopicType.JSON);<br><br>
+			// Update the Topic with the Value<br>
+			session.topicUpdate.set(topic, diffusion.datatypes.json(), value);			
+		</span>
+	</div>
+ </td></tr><tr>
+<td>File</td><td><input type="file" id="fileInput"></td><td></td></tr><tr></table>
+  <br><br>
+  &nbsp &nbsp &nbsp &nbsp &nbsp &nbsp &nbsp &nbsp &nbsp &nbsp &nbsp <input type="button" onclick="handle_publish();" value="Publish">
+</form>
+<script>
+
+async function handle_publish() {
+	var session = await connectToDiffusion();
+	publish_result = pubmessage(session);
+};
+//
+// Connect to and create a Diffusion Session
+//
+async function connectToDiffusion() {
+	user_var=document.getElementById("diff_principal");
+	host_var=document.getElementById("diff_host");
+	port_var=document.getElementById("diff_port");
+	password_var=document.getElementById("diff_password");
+            return diffusion.connect({
+			    host : host_var.value,
+				port : port_var.value,
+				principal : user_var.value,
+				credentials : password_var.value
+				});
+	}
+
+async function pubmessage(session){
+	topic_var=document.getElementById("diff_topic");
+	delay_var=document.getElementById("p_delay");
+	diff_topictype_var = document.getElementById("diff_topictype");
+	//
+	// Add the topic
+	//
+	if(diff_topictype_var.value === "TIME_SERIES") {
+		const TopicSpecification = diffusion.topics.TopicSpecification;
+		const TopicType = diffusion.topics.TopicType;
+		const specification = new TopicSpecification(TopicType.TIME_SERIES, 
+				{TIME_SERIES_EVENT_VALUE_TYPE : 'json',
+			     TIME_SERIES_RETAINED_RANGE : 'limit 50',
+			     TIME_SERIES_SUBSCRIPTION_RANGE : 'limit 50'
+			   	});
+		await session.topics.add(topic_var.value, specification);
+		
+	} else if (diff_topictype_var.value === "JSON") {
+	    await session.topics.add(topic_var.value, diffusion.topics.TopicType.JSON);
+		
+	} else if (diff_topictype_var.value === "STRING") {
+	    await session.topics.add(topic_var.value, diffusion.topics.TopicType.STRING);
+	
+	} else if (diff_topictype_var.value === "BINARY") {
+	    await session.topics.add(topic_var.value, diffusion.topics.TopicType.BINARY);
+	};
+	//
+	// load some details about the file load time
+	//
+	var endpoint_stats_topic = "Operations/Metrics/" + topic_var.value + "/Endpoint_Stats";
+	await session.topics.add(endpoint_stats_topic, diffusion.topics.TopicType.JSON);
+	var start_time = new Date();
+	var start_time_log = start_time.toUTCString();
+	//
+	// Load the input file
+	//
+	var fileInput = document.getElementById('fileInput');
+	var file = fileInput.files[0];		
+    var reader = new FileReader();
+	var diff_data_record;
+	reader.onload = (e) => {
+		var diff_data = reader.result;
+		var regex = /\n/g;
+		diff_data_record = diff_data.split(regex);
+		var d = new Date();
+		var n = d.toUTCString();
+		var record_latency = d - start_time;
+		var fileInput_report = document.getElementById('fileInput');
+		var endpoint_stats = "{\"endpoint_loaded\":\"" + " file " +
+		"\",\"start_time\":\"" + start_time_log +
+		"\",\"endpoint_latency\":\"" + record_latency +
+		" ms\"}";
+		console.log(n +' Publishing Message: 0 value: ' + diff_data_record[1]);
+		publish_monitor_file_load = session.topicUpdate.set(endpoint_stats_topic, diffusion.datatypes.json(), JSON.parse(endpoint_stats));		
+		updater(diff_data_record,diff_data);
+		};		
+    reader.readAsText(file);
+	//
+	// publish data to diffusion
+	//
+	const updater = (diff_data_record,diff_data) => {
+		if(diff_topictype_var.value === "JSON" || diff_topictype_var.value === "TIME_SERIES") {
+		  result = session.topicUpdate.set(topic_var.value, diffusion.datatypes.json(), JSON.parse(diff_data_record[0]));
+		  } else if (diff_topictype_var.value === "STRING") {
+		  result = session.topicUpdate.set(topic_var.value, diffusion.datatypes.string(), diff_data_record[0]);
+		  } else if (diff_topictype_var.value === "BINARY") {
+		  result = session.topicUpdate.set(topic_var.value, diffusion.datatypes.binary(), diffusion.buffer.from(diff_data_record[0]));
+		  };
+		
+		let counter = 0;
+		let id = setInterval(() => {
+			if ( diff_data_record.length <= ++counter) {
+				console.log('Diffusion Data Publisher Complete');
+				alert("Completion of Diffusion Message Publishing");
+				clearInterval(id);
+				return;		 
+				}
+						
+			if(diff_topictype_var.value === "JSON" || diff_topictype_var.value === "TIME_SERIES") {
+		      result = session.topicUpdate.set(topic_var.value, diffusion.datatypes.json(), JSON.parse(diff_data_record[counter]));
+		      } else if (diff_topictype_var.value === "STRING") {
+		      result = session.topicUpdate.set(topic_var.value, diffusion.datatypes.string(), diff_data_record[counter]);
+		      } else if (diff_topictype_var.value === "BINARY") {
+			  
+			    var tmp_value = diff_data_record[counter];
+				var diff_binary_record='';
+				var diff_binary_record2='';
+				
+				// for loop attempt to convert string to binary, the slice was not needed in some examples
+			    //  for (var tb = 0; tb < tmp_value.length; tb++) {
+				    // either this or the following line - diff_binary_record += tmp_value[tb].charCodeAt(0).toString(2).slice(-8) + " ";
+				    // diff_binary_record += tmp_value[tb].charCodeAt(0).toString(2).slice(-8);
+				    // };
+		        // result = session.topicUpdate.set(topic_var.value, diffusion.datatypes.binary(), diff_binary_record);				
+
+ 				// attempt without for loop				
+				// diff_binary_record2 = tmp_value.split('').map(char => {return char.charCodeAt(0).toString(2);}).join(' ');
+		        // result = session.topicUpdate.set(topic_var.value, diffusion.datatypes.binary(), diff_binary_record2);
+				
+				// attempts on the entire buffer without breaking into individual characters
+				// result = session.topicUpdate.set(topic_var.value, diffusion.datatypes.binary(), diffusion.datatypes.binary().readValue(tmp_value));
+				result = session.topicUpdate.set(topic_var.value, diffusion.datatypes.binary(), diffusion.buffer.from(tmp_value));
+		        // result = session.topicUpdate.set(topic_var.value, diffusion.datatypes.binary(), tmp_value.blob());
+				//  result = session.topicUpdate.set(topic_var.value, diffusion.datatypes.binary(), diff_data);
+		      	};
+			
+			var d = new Date();
+			var n = d.toUTCString();
+			console.log(n +' Publishing Message: ' + counter + ' value: ' + diff_data_record[counter]);		
+			}, delay_var.value);
+		};
+	};
+</script>
+<br><br><img src="demofooter.png"><br>
+</body>
+</html>
